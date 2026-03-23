@@ -1,12 +1,11 @@
 local modem = peripheral.find("modem", function(_, m) return m.isWireless() end)
-if not modem then error("Modem wireless não encontrado!", 0) end
+if not modem then error("Modem wireless nao encontrado!", 0) end
 
 rednet.open(peripheral.getName(modem))
 
 local display = peripheral.find("monitor") or term
 if display ~= term then display.setTextScale(0.5) end
 
--- ---- Helpers (mesmos do programa original) ----
 local J_TO_RF = 2.5
 
 local function formatEnergy(j)
@@ -76,21 +75,20 @@ local function render(d, data)
     local timeStr = "---"
     if net > 0 and data.pct < 1 then
         local s = math.floor((data.maxEnergy - data.energy) / net / 20)
-        timeStr = s > 3600 and string.format(">%dh cheio", s/3600)
-                or s > 60  and string.format("%dm cheio",  math.floor(s/60))
-                or string.format("%ds cheio", s)
+        if s > 3600 then timeStr = string.format(">%dh cheio", math.floor(s/3600))
+        elseif s > 60 then timeStr = string.format("%dm cheio", math.floor(s/60))
+        else timeStr = string.format("%ds cheio", s) end
     elseif net < 0 and data.pct > 0 then
         local s = math.floor(data.energy / math.abs(net) / 20)
-        timeStr = s > 3600 and string.format(">%dh vazio", s/3600)
-                or s > 60  and string.format("%dm vazio",  math.floor(s/60))
-                or string.format("%ds vazio", s)
+        if s > 3600 then timeStr = string.format(">%dh vazio", math.floor(s/3600))
+        elseif s > 60 then timeStr = string.format("%dm vazio", math.floor(s/60))
+        else timeStr = string.format("%ds vazio", s) end
     end
 
     d.setBackgroundColor(colors.black)
     d.clear()
 
-    -- Título
-    d.setCursorPos(1,1)
+    d.setCursorPos(1, 1)
     d.setBackgroundColor(colors.blue)
     d.write(string.rep(" ", w))
     writeCentered(d, 1, "[ INDUCTION MATRIX ]", colors.white, colors.blue)
@@ -101,9 +99,9 @@ local function render(d, data)
     writeCentered(d, 5, formatEnergy(data.energy) .. " / " .. formatEnergy(data.maxEnergy), colors.lightBlue)
 
     drawDivider(d, 6)
-    writeLine(d, 7,  " Entrada:", formatRate(data.input),       colors.lightGray, colors.lime)
-    writeLine(d, 8,  " Saida:  ", formatRate(data.output),      colors.lightGray, colors.red)
-    writeLine(d, 9,  " Fluxo:  ", netStr,                       colors.lightGray, net >= 0 and colors.lime or colors.orange)
+    writeLine(d, 7,  " Entrada:", formatRate(data.input),      colors.lightGray, colors.lime)
+    writeLine(d, 8,  " Saida:  ", formatRate(data.output),     colors.lightGray, colors.red)
+    writeLine(d, 9,  " Fluxo:  ", netStr,                      colors.lightGray, net >= 0 and colors.lime or colors.orange)
     writeLine(d, 10, " Cap.Max:", formatRate(data.transferCap), colors.lightGray, colors.cyan)
     drawDivider(d, 11)
     writeLine(d, 12, " Estimativa:", timeStr, colors.lightGray, colors.yellow)
@@ -112,7 +110,6 @@ local function render(d, data)
     writeCentered(d, h, "wireless | q = sair", colors.gray)
 end
 
--- ---- Loop principal ----
 print("Aguardando dados...")
 
 parallel.waitForAny(
@@ -122,9 +119,8 @@ parallel.waitForAny(
             if msg then
                 pcall(render, display, msg)
             else
-                -- Timeout: avisa que perdeu conexão
                 display.clear()
-                display.setCursorPos(1,1)
+                display.setCursorPos(1, 1)
                 display.setTextColor(colors.red)
                 writeCentered(display, 3, "SEM SINAL...", colors.red)
             end
@@ -139,14 +135,5 @@ parallel.waitForAny(
 )
 
 term.clear()
-term.setCursorPos(1,1)
+term.setCursorPos(1, 1)
 print("Encerrado.")
-
-
----
-
-## Setup físico
-```
-[Induction Port] ←→ [Computador 1] [Wireless Modem]
-                                          ↕ (ar)
-                     [Wireless Modem] [Computador 2] ←→ [Monitor]
