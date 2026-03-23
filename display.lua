@@ -1,45 +1,31 @@
--- DISPLAY CLIENT
+-- JARVIS DISPLAY 3x5
 
 local modem = peripheral.find("modem", function(_, m)
     return m.isWireless()
 end)
 
--- 🔍 detectar monitor automaticamente
-local monitor = nil
-
-for _, name in ipairs(peripheral.getNames()) do
-    local t = peripheral.getType(name)
-    if string.find(t, "monitor") then
-        monitor = peripheral.wrap(name)
-        break
-    end
-end
+local monitor = peripheral.find("monitor")
 
 local channel = 42
 
-if not modem then error("Sem modem wireless 📡") end
-if not monitor then error("Monitor não encontrado 🖥️") end
+if not modem then error("Sem modem 📡") end
+if not monitor then error("Sem monitor 🖥️") end
 
 modem.open(channel)
 monitor.setTextScale(0.5)
 
-local screen = 1
-local history = {}
+local historico = {}
 
-local function status(percent, input, output)
-    if percent < 20 then return colors.red, "CRITICAL" end
-    if input > output then return colors.blue, "CHARGING" end
-    if output > input then return colors.orange, "DRAINING" end
-    return colors.green, "STABLE"
+local function corStatus(p)
+    if p < 20 then return colors.red end
+    if p < 70 then return colors.yellow end
+    return colors.green
 end
 
-local function drawBar(x,y,p)
-    local w = 24
-    local fill = math.floor((p/100)*w)
+local function barra(p, largura)
+    local fill = math.floor((p/100)*largura)
 
-    monitor.setCursorPos(x,y)
-
-    for i=1,w do
+    for i=1,largura do
         if i <= fill then
             monitor.setBackgroundColor(colors.lime)
         else
@@ -47,84 +33,72 @@ local function drawBar(x,y,p)
         end
         monitor.write(" ")
     end
-
     monitor.setBackgroundColor(colors.black)
 end
 
-local function drawMain(data)
-    local percent = math.floor(data.percent*100)
-    local color, txt = status(percent, data.input, data.output)
+local function grafico(w,h)
+    for i=1,#historico do
+        local v = historico[i]
+        local y = h - math.floor((v/100)*(h-5))
 
-    monitor.clear()
-
-    monitor.setCursorPos(1,1)
-    monitor.setTextColor(colors.cyan)
-    monitor.write("⚡ INDUCTION MATRIX")
-
-    monitor.setCursorPos(1,2)
-    monitor.setTextColor(colors.gray)
-    monitor.write(string.rep("=",30))
-
-    monitor.setCursorPos(1,4)
-    monitor.setTextColor(colors.white)
-    monitor.write("Charge: "..percent.."%")
-
-    drawBar(1,6,percent)
-
-    monitor.setCursorPos(1,8)
-    monitor.setTextColor(colors.green)
-    monitor.write("IN : +"..data.input)
-
-    monitor.setCursorPos(1,9)
-    monitor.setTextColor(colors.red)
-    monitor.write("OUT: -" ..data.output)
-
-    monitor.setCursorPos(1,11)
-    monitor.setTextColor(color)
-    monitor.write("STATUS: "..txt)
-end
-
-local function drawGraph()
-    monitor.clear()
-
-    monitor.setCursorPos(1,1)
-    monitor.setTextColor(colors.cyan)
-    monitor.write("⚡ ENERGY GRAPH")
-
-    local w,h = monitor.getSize()
-
-    for i = 1, #history do
-        local value = history[i]
-        local y = h - math.floor((value/100)*h)
-
-        monitor.setCursorPos(i, y)
-        monitor.setTextColor(colors.lime)
+        monitor.setCursorPos(i,y)
+        monitor.setTextColor(colors.cyan)
         monitor.write("█")
     end
 end
 
 while true do
-    local event = {os.pullEvent()}
+    local _,_,ch,_,data = os.pullEvent("modem_message")
 
-    if event[1] == "modem_message" then
-        local _,_,ch,_,data = table.unpack(event)
+    if ch == channel then
+        local w,h = monitor.getSize()
 
-        if ch == channel then
-            local percent = math.floor(data.percent*100)
+        table.insert(historico, data.percent)
+        if #historico > w then table.remove(historico,1) end
 
-            table.insert(history, percent)
-            if #history > 50 then table.remove(history,1) end
+        monitor.clear()
 
-            if screen == 1 then
-                drawMain(data)
-            else
-                drawGraph()
-            end
-        end
-    end
+        -- 🔷 TÍTULO CENTRALIZADO
+        local title = "🤖 JARVIS ENERGY CORE"
+        monitor.setCursorPos(math.floor((w - #title)/2),1)
+        monitor.setTextColor(colors.cyan)
+        monitor.write(title)
 
-    if event[1] == "monitor_touch" then
-        screen = screen + 1
-        if screen > 2 then screen = 1 end
+        monitor.setCursorPos(1,2)
+        monitor.setTextColor(colors.gray)
+        monitor.write(string.rep("=",w))
+
+        -- ⚡ ENERGIA GRANDE
+        local percent = math.floor(data.percent)
+        local energyText = percent .. "%"
+
+        monitor.setCursorPos(math.floor((w - #energyText)/2),4)
+        monitor.setTextColor(colors.white)
+        monitor.write(energyText)
+
+        -- 📊 BARRA FULL WIDTH
+        monitor.setCursorPos(1,6)
+        barra(data.percent, w)
+
+        -- 🔁 FLUXO
+        monitor.setCursorPos(2,8)
+        monitor.setTextColor(colors.green)
+        monitor.write("IN : +"..data.input)
+
+        monitor.setCursorPos(2,9)
+        monitor.setTextColor(colors.red)
+        monitor.write("OUT: -" ..data.output)
+
+        -- 🤖 STATUS IA
+        monitor.setCursorPos(2,11)
+        monitor.setTextColor(corStatus(data.percent))
+        monitor.write("IA: "..data.status)
+
+        monitor.setCursorPos(2,12)
+        monitor.setTextColor(colors.orange)
+        monitor.write("Sistema: "..(data.ativo and "ON" or "OFF"))
+
+        -- 📈 GRÁFICO (parte de baixo)
+        grafico(w,h)
     end
 end
